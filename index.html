@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PPT 播放器</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0d0d1a;color:#eee;min-height:100vh;overflow:hidden}
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#16162a;border-bottom:1px solid #2a2a40;flex-shrink:0;gap:10px}
+#topbar .title{font-size:15px;color:#ccc;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+#topbar .pageinfo{font-size:14px;color:#888;white-space:nowrap;background:#0d0d1a;padding:4px 10px;border-radius:4px}
+#dlBtn{background:#e94560;color:#fff;border:none;padding:10px 18px;border-radius:6px;font-size:14px;cursor:pointer;white-space:nowrap;font-weight:bold}
+#dlBtn:hover{background:#c73e54}
+#pdfWrap{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;background:#1a1a2e;position:relative}
+#pdfCanvas{max-width:100%;max-height:calc(100vh - 130px);max-height:calc(100dvh - 130px);box-shadow:0 4px 24px rgba(0,0,0,0.6)}
+#controls{display:flex;align-items:center;justify-content:center;gap:20px;padding:14px 16px;background:#16162a;border-top:1px solid #2a2a40;flex-shrink:0}
+#controls button{height:48px;padding:0 32px;font-size:16px;font-weight:bold;border:none;border-radius:8px;cursor:pointer;color:#fff;background:#1a4a7a}
+#controls button:hover{background:#2460a0}
+#controls button:disabled{background:#2a2a3a;color:#555;cursor:not-allowed}
+#player{display:none;flex-direction:column;height:100vh;height:100dvh}
+#error{display:none;flex-direction:column;align-items:center;justify-content:center;height:100vh;height:100dvh;gap:16px;color:#e94560;text-align:center;padding:20px}
+#error h2{font-size:20px}
+#error p{font-size:14px;color:#888;max-width:400px;line-height:1.6}
+#loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;height:100dvh;gap:16px}
+#loading .spinner{width:40px;height:40px;border:4px solid #333;border-top-color:#e94560;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading p{color:#888;font-size:14px}
+@media (max-width:480px){
+  #controls{gap:12px;padding:10px 12px}
+  #controls button{padding:0 20px;font-size:15px;height:44px}
+  #topbar{padding:10px 12px}
+  #dlBtn{padding:8px 12px;font-size:13px}
+}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>正在加载 PPT...</p>
+</div>
+
+<div id="error">
+  <h2>未接收到参数</h2>
+  <p>请从跳转页面进入。直接打开本网址不会显示内容。</p>
+</div>
+
+<div id="player">
+  <div id="topbar">
+    <div class="title" id="pptTitle">PPT</div>
+    <div class="pageinfo"><span id="curPage">1</span> / <span id="totPage">0</span></div>
+    <button id="dlBtn" onclick="downloadPPT()">下载到本地</button>
+  </div>
+  <div id="pdfWrap">
+    <canvas id="pdfCanvas"></canvas>
+  </div>
+  <div id="controls">
+    <button id="prevBtn" onclick="prevPage()">上一页</button>
+    <button id="nextBtn" onclick="nextPage()">下一页</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script>
+var pdfDoc=null;
+var curPage=1;
+var totalPages=0;
+var pptxUrl='';
+var pptTitle='';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+function getParam(name){
+  var h=new RegExp('[#&]'+name+'=([^&]*)').exec(location.hash);
+  return h?decodeURIComponent(h[1]):'';
+}
+
+async function init(){
+  var pdfUrl=getParam('pdf');
+  var title=getParam('title');
+  pptxUrl=getParam('pptx');
+
+  if(pdfUrl){
+    try{
+      sessionStorage.setItem('ppt_pdf',pdfUrl);
+      sessionStorage.setItem('ppt_pptx',pptxUrl);
+      sessionStorage.setItem('ppt_title',title);
+    }catch(e){}
+    history.replaceState(null,'',location.pathname);
+  }else{
+    try{
+      pdfUrl=sessionStorage.getItem('ppt_pdf')||'';
+      pptxUrl=sessionStorage.getItem('ppt_pptx')||'';
+      title=sessionStorage.getItem('ppt_title')||'';
+    }catch(e){}
+  }
+
+  if(!pdfUrl){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('error').style.display='flex';
+    return;
+  }
+
+  if(title){document.getElementById('pptTitle').textContent=title; pptTitle=title;}
+
+  try{
+    pdfDoc=await pdfjsLib.getDocument(pdfUrl).promise;
+    totalPages=pdfDoc.numPages;
+    document.getElementById('totPage').textContent=totalPages;
+    document.getElementById('loading').style.display='none';
+    document.getElementById('error').style.display='none';
+    document.getElementById('player').style.display='flex';
+    await renderPage(1);
+  }catch(e){
+    document.getElementById('loading').style.display='none';
+    document.getElementById('error').style.display='flex';
+    document.getElementById('error').querySelector('h2').textContent='加载失败';
+    document.getElementById('error').querySelector('p').textContent='PDF加载失败: '+e.message;
+  }
+}
+
+async function renderPage(num){
+  var page=await pdfDoc.getPage(num);
+  var viewport=page.getViewport({scale:1.5});
+  var canvas=document.getElementById('pdfCanvas');
+  canvas.width=viewport.width;
+  canvas.height=viewport.height;
+  var ctx=canvas.getContext('2d');
+  await page.render({canvasContext:ctx,viewport:viewport}).promise;
+  document.getElementById('curPage').textContent=num;
+  document.getElementById('prevBtn').disabled=(num===1);
+  document.getElementById('nextBtn').disabled=(num===totalPages);
+}
+
+function prevPage(){if(curPage>1){curPage--;renderPage(curPage);}}
+function nextPage(){if(curPage<totalPages){curPage++;renderPage(curPage);}}
+
+function downloadPPT(){
+  if(!pptxUrl)return;
+  var a=document.createElement('a');
+  a.href=pptxUrl;
+  a.target='_blank';
+  a.rel='noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+document.addEventListener('keydown',function(e){
+  if(document.getElementById('player').style.display!=='flex')return;
+  if(e.key==='ArrowLeft')prevPage();
+  if(e.key==='ArrowRight'||e.key===' ')nextPage();
+});
+
+var touchStartX=0,touchStartY=0;
+document.addEventListener('touchstart',function(e){
+  touchStartX=e.touches[0].clientX;
+  touchStartY=e.touches[0].clientY;
+},{passive:true});
+document.addEventListener('touchend',function(e){
+  if(document.getElementById('player').style.display!=='flex')return;
+  var dx=e.changedTouches[0].clientX-touchStartX;
+  var dy=e.changedTouches[0].clientY-touchStartY;
+  if(Math.abs(dx)<50||Math.abs(dx)<Math.abs(dy))return;
+  if(dx<0)nextPage();else prevPage();
+},{passive:true});
+
+init();
+</script>
+</body>
+</html>
