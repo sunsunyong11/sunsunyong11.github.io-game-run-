@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>威海七天自驾游路线</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0d0d1a;color:#eee;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+.loading{width:40px;height:40px;border:4px solid #333;border-top-color:#e94560;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+p{color:#888;font-size:14px;margin-top:16px}
+</style>
+</head>
+<body>
+<div class="loading"></div>
+<p>正在加载 PPT...</p>
+<script>
+var PLAYER_URL = "https://sunsunyong11.github.io/sunsunyong11.github.io-game-run-/";
+var PDF_URL = "https://sunsunyong11.github.io/sunsunyong11.github.io-game-run-/files/weihai.pdf";
+var PPTX_URL = "https://sunsunyong11.github.io/sunsunyong11.github.io-game-run-/files/weihai.pptx";
+var TITLE = "威海七天自驾游路线（10.1-10.7）";
+var hash = "#pdf=" + encodeURIComponent(PDF_URL)
+  + "&pptx=" + encodeURIComponent(PPTX_URL)
+  + "&title=" + encodeURIComponent(TITLE);
+location.replace(PLAYER_URL + hash);
+</script>
+</body>
+</html>
